@@ -433,23 +433,34 @@ def run_bfd():
         bfd_status = ['bfd_status:state', 'bfd_status:forwarding',
                       'bfd_status:diagnostic', 'bfd_status:remote_state',
                       'bfd_status:remote_diagnostic']
+        
+        remove_tunnel = []
+        set_tunnel = []
+
         for key in bfd_status:
             value = ovs_vsctl("--if-exists get interface %s %s" % (port, key))
             if value:
-                vtep_ctl("set tunnel %s %s=%s" %(tunnel, key, value))
+                set_tunnel.append("%s=%s" % (key, value))
             else:
-                new_key = key.replace('bfd_status:', '')
-                vtep_ctl("remove tunnel %s bfd_status %s" % (tunnel, new_key))
+                remove_tunnel.append(key.replace('bfd_status:', ''))
 
-        vtep_ctl("set tunnel %s bfd_status:enabled=%s"
-                 % (tunnel, bfd_params_values['bfd_params:enable']))
+        set_tunnel.append("bfd_status:enabled=%s"
+                          % bfd_params_values['bfd_params:enable'])
 
         # Add the defaults as described in VTEP schema to make it explicit.
         bfd_lconf_default = {'bfd_config_local:bfd_dst_ip' : '169.254.1.0',
                              'bfd_config_local:bfd_dst_mac' :
                                     '00:23:20:00:00:01'}
         for key, value in bfd_lconf_default.iteritems():
-            vtep_ctl("set tunnel %s %s=%s" %(tunnel, key, value))
+            set_tunnel.append("%s=%s" % (key, value))
+
+        if remove_tunnel:
+            vlog.info("remove tunnel %s bfd_status %s" % (tunnel, ' '.join(remove_tunnel)))
+            vtep_ctl("remove tunnel %s bfd_status %s" % (tunnel, ' '.join(remove_tunnel)))
+
+        if set_tunnel:
+            vlog.info("set tunnel %s %s" % (tunnel, ' '.join(set_tunnel)))
+            vtep_ctl("set tunnel %s %s" % (tunnel, ' '.join(set_tunnel)))
 
         # bfd_config_remote options from VTEP DB should be populated to
         # corresponding OVS DB values.
